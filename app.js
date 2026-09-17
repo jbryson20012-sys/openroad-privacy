@@ -11,6 +11,7 @@ import {
   mergeCameras,
   normalizeCamera,
   toFeatureCollection,
+  travelHeading,
 } from "./core.js";
 import { CameraPositionIndex } from "./camera-index.js";
 
@@ -33,6 +34,8 @@ const elements = Object.fromEntries([
   "report-notes", "import-input", "export-button", "about-data-button", "about-dialog", "toast", "recenter-button",
   "drive-button", "drive-status", "voice-alerts", "alert-distance",
   "mobile-panel-toggle", "sidebar", "install-button",
+  "close-panel-button", "map-drive-button", "map-dock", "drive-hud", "drive-hud-title", "drive-hud-status",
+  "stop-drive-button", "report-hint", "cancel-report-button", "change-report-location", "route-connection",
 ].map((id) => [id.replaceAll("-", "_"), document.getElementById(id)]));
 
 const state = {
@@ -55,6 +58,13 @@ const state = {
   routeMarkers: [],
   reportMode: false,
   userLocation: null,
+  lastFix: null,
+  heading: null,
+  followLocation: false,
+  locationRequest: 0,
+  endpoints: { origin: "current", destination: "address" },
+  routeEndpoints: null,
+  driveTimer: null,
   installPrompt: null,
 };
 
@@ -73,12 +83,21 @@ async function bootstrap() {
     catch (error) { handleMapError(error); }
   }
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
-    window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+    let reloading = false;
+    const wasControlled = Boolean(navigator.serviceWorker.controller);
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (wasControlled && !reloading) { reloading = true; location.reload(); }
+    });
+    const register = () => navigator.serviceWorker.register("./sw.js").catch(() => {});
+    if (document.readyState === "complete") void register();
+    else window.addEventListener("load", register, { once: true });
   }
 }
 
 function bindEvents() {
   elements.drive_button.addEventListener("click", toggleDriving);
+  elements.map_drive_button.addEventListener("click", toggleDriving);
+  elements.stop_drive_button.addEventListener("click", stopDriving);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && state.watchId !== null) void keepAwake();
   });
@@ -88,9 +107,17 @@ function bindEvents() {
   elements.route_form.addEventListener("submit", handleRouteSubmit);
   elements.swap_button.addEventListener("click", () => {
     [elements.origin.value, elements.destination.value] = [elements.destination.value, elements.origin.value];
+    [state.endpoints.origin, state.endpoints.destination] = [state.endpoints.destination, state.endpoints.origin];
+    state.locationRequest++;
   });
+  for (const endpoint of ["origin", "destination"]) {
+    elements[endpoint].addEventListener("input", () => {
+      state.endpoints[endpoint] = "address";
+      state.locationRequest++;
+    });
+  }
   elements.location_button.addEventListener("click", useCurrentLocation);
-  elements.recenter_button.addEventListener("click", useCurrentLocation);
+  elements.recenter_button.addEventListener("click", recenterMap);
   elements.clear_route_button.addEventListener("click", clearRoute);
   elements.directions_toggle.addEventListener("click", () => {
     elements.directions_list.hidden = !elements.directions_list.hidden;
@@ -104,15 +131,30 @@ function bindEvents() {
     refreshVisibleCameras();
   });
   elements.report_button.addEventListener("click", beginReport);
+  elements.change_report_location.addEventListener("click", () => {
+    elements.report_dialog.close();
+    beginReport();
+  });
+  elements.cancel_report_button.addEventListener("click", cancelReport);
   elements.report_form.addEventListener("submit", saveReport);
   elements.import_input.addEventListener("change", importCameraFile);
   elements.export_button.addEventListener("click", exportReports);
   elements.about_data_button.addEventListener("click", () => elements.about_dialog.showModal());
   document.querySelectorAll("[data-close-dialog]").forEach((button) => button.addEventListener("click", () => button.closest("dialog")?.close()));
-  elements.mobile_panel_toggle.addEventListener("click", () => elements.sidebar.classList.add("open"));
+  elements.mobile_panel_toggle.addEventListener("click", () => {
+    setPanelOpen(true);
+    elements.sidebar.scrollTop = 0;
+    elements.destination.focus({ preventScroll: true });
+  });
+  elements.close_panel_button.addEventListener("click", () => setPanelOpen(false, true));
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { setPanelOpen(false, true); cancelReport(); }
+  });
+  window.addEventListener("resize", syncPanelAccess);
+  syncPanelAccess();
   document.addEventListener("pointerdown", (event) => {
     if (window.innerWidth <= 860 && elements.sidebar.classList.contains("open") && !elements.sidebar.contains(event.target) && !elements.mobile_panel_toggle.contains(event.target)) {
-      elements.sidebar.classList.remove("open");
+      setPanelOpen(false);
     }
   });
   window.addEventListener("beforeinstallprompt", (event) => {
@@ -127,6 +169,17 @@ function bindEvents() {
     state.installPrompt = null;
     elements.install_button.hidden = true;
   });
+}
+
+function syncPanelAccess() {
+  elements.sidebar.inert = window.innerWidth <= 860 && !elements.sidebar.classList.contains("open");
+}
+
+function setPanelOpen(open, returnFocus = false) {
+  elements.sidebar.classList.toggle("open", open);
+  elements.mobile_panel_toggle.setAttribute("aria-expanded", String(open));
+  syncPanelAccess();
+  if (!open && returnFocus && window.innerWidth <= 860) elements.mobile_panel_toggle.focus();
 }
 
 async function loadCameraIndex() {
@@ -198,11 +251,13 @@ async function initializeGoogleMaps(apiKey) {
     google.maps.importLibrary("marker"),
   ]);
   stopDriving();
+  removeLocationMarker();
+  clearRoute();
   if (state.provider === "osm" && state.map) state.map.remove();
   state.provider = "google";
   state.routeClass = Route;
   state.map = new Map(document.getElementById("map"), {
-    center: DEFAULT_CENTER,
+    center: state.userLocation || DEFAULT_CENTER,
     zoom: 11,
     mapTypeControl: false,
     streetViewControl: false,
@@ -216,14 +271,14 @@ async function initializeGoogleMaps(apiKey) {
   state.dataLayer.setStyle(cameraStyle);
   state.dataLayer.addListener("click", showCameraInfo);
   state.map.addListener("idle", refreshVisibleCameras);
+  state.map.addListener("dragstart", pauseFollowing);
   state.map.addListener("click", (event) => {
     if (!state.reportMode) return;
-    state.reportMode = false;
-    elements.report_lat.value = event.latLng.lat().toFixed(6);
-    elements.report_lng.value = event.latLng.lng().toFixed(6);
-    elements.report_dialog.showModal();
+    selectReportLocation({ lat: event.latLng.lat(), lng: event.latLng.lng() });
   });
   elements.map_empty.hidden = true;
+  elements.route_connection.hidden = true;
+  if (state.userLocation) renderLocationMarker();
   refreshVisibleCameras();
   toast("Map connected. Camera index and route comparison are ready.");
 }
@@ -326,13 +381,19 @@ async function handleRouteSubmit(event) {
     return toast("Connect Google Maps before planning a route.");
   }
   if (!state.cameraIndex) return toast("Wait for the camera index before comparing exposure. Reload if it could not load.");
-  const origin = elements.origin.value.trim();
-  const destination = elements.destination.value.trim();
-  if (!origin || !destination) return;
+  if (!elements.origin.value.trim() || !elements.destination.value.trim()) return;
   elements.route_button.disabled = true;
   elements.route_button.querySelector("span").textContent = "Comparing…";
   clearRoute();
   try {
+    // Resolve GPS at submission, while retaining human-readable labels in the form.
+    const endpointKinds = { ...state.endpoints };
+    const endpointText = { origin: elements.origin.value.trim(), destination: elements.destination.value.trim() };
+    const fix = Object.values(endpointKinds).includes("current") ? await getLocationFix() : null;
+    if (fix) acceptLocationFix(fix);
+    const point = fix ? { lat: fix.coords.latitude, lng: fix.coords.longitude } : null;
+    const origin = endpointKinds.origin === "current" ? point : endpointText.origin;
+    const destination = endpointKinds.destination === "current" ? point : endpointText.destination;
     const { routes } = await state.routeClass.computeRoutes({
       origin,
       destination,
@@ -347,6 +408,8 @@ async function handleRouteSubmit(event) {
       ],
     });
     if (!routes?.length) throw new Error("No drivable route was returned.");
+    state.routeEndpoints = { origin, destination };
+    pauseFollowing();
     state.routes = routes.map((route, index) => scoreRoute(route, index));
     const priority = new FormData(elements.route_form).get("priority");
     state.selectedRouteIndex = chooseRouteIndex(state.routes, priority);
@@ -455,7 +518,8 @@ function renderSelectedRoute() {
     <div class="summary-stat"><strong>${knownBrands}</strong><span>Known brands</span></div>
     <div class="summary-stat"><strong>${EXPOSURE_CORRIDOR_METERS} m</strong><span>Count corridor</span></div>
   `;
-  elements.google_maps_link.href = buildGoogleMapsUrl(elements.origin.value.trim(), elements.destination.value.trim(), item.path);
+  const linkValue = (endpoint) => typeof endpoint === "string" ? endpoint : `${endpoint.lat},${endpoint.lng}`;
+  elements.google_maps_link.href = buildGoogleMapsUrl(linkValue(state.routeEndpoints.origin), linkValue(state.routeEndpoints.destination), item.path);
   const steps = (item.route.legs || []).flatMap((leg) => leg.steps || []);
   elements.directions_list.innerHTML = steps.map((step) => `
     <li>${escapeHtml(step.instructions || "Continue")}<span>${escapeHtml(step.localizedValues?.distance || "")}</span></li>
@@ -468,6 +532,7 @@ function renderSelectedRoute() {
 function clearRoute() {
   clearRouteGraphics();
   state.routes = [];
+  state.routeEndpoints = null;
   elements.route_results.hidden = true;
   elements.directions_list.hidden = true;
   elements.directions_toggle.textContent = "Show directions";
@@ -489,19 +554,32 @@ function toLiteral(point) {
 
 function beginReport() {
   if (state.watchId !== null) return toast("Stop driving mode before adding a report.");
-  if (!state.map) {
-    elements.report_lat.value = "";
-    elements.report_lng.value = "";
-    elements.report_dialog.showModal();
-    return;
-  }
+  if (!state.map) return toast("Wait for the map to load, then tap the camera’s location.");
+  elements.report_lat.value = "";
+  elements.report_lng.value = "";
   state.reportMode = true;
-  elements.sidebar.classList.remove("open");
-  toast("Tap the camera location on the map.");
+  state.followLocation = false;
+  elements.report_hint.hidden = false;
+  elements.map_dock.hidden = true;
+  setPanelOpen(false);
+}
+
+function cancelReport() {
+  state.reportMode = false;
+  elements.report_hint.hidden = true;
+  elements.map_dock.hidden = false;
+}
+
+function selectReportLocation(point) {
+  cancelReport();
+  elements.report_lat.value = point.lat;
+  elements.report_lng.value = point.lng;
+  elements.report_dialog.showModal();
 }
 
 function saveReport(event) {
   event.preventDefault();
+  if (!elements.report_lat.value || !elements.report_lng.value) return toast("Choose the camera’s location on the map first.");
   const camera = normalizeCamera({
     id: `report-${crypto.randomUUID?.() || Date.now()}`,
     lat: elements.report_lat.value,
@@ -513,7 +591,7 @@ function saveReport(event) {
     lastVerified: new Date().toISOString().slice(0, 10),
     origin: "local",
   });
-  if (!camera) return toast("Enter valid latitude and longitude values.");
+  if (!camera) return toast("Choose the camera’s location on the map again.");
   state.localCameras = mergeCameras(state.localCameras, [camera]);
   persistLocalReports();
   updateLocalCount();
@@ -575,17 +653,107 @@ function updateLocalCount() {
   elements.local_count.textContent = state.localCameras.length.toLocaleString();
 }
 
-function useCurrentLocation() {
-  if (!navigator.geolocation) return toast("Location is not available in this browser.");
-  toast("Getting your location…");
-  navigator.geolocation.getCurrentPosition((position) => {
-    state.userLocation = { lat: position.coords.latitude, lng: position.coords.longitude };
-    elements.origin.value = `${state.userLocation.lat.toFixed(6)}, ${state.userLocation.lng.toFixed(6)}`;
-    if (state.map) {
-      state.map.panTo(state.userLocation);
-      state.map.setZoom(14);
-    }
-  }, () => toast("Location permission was not granted."), { enableHighAccuracy: true, timeout: 10_000 });
+function getLocationFix() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error("Location is unavailable. Enter a starting address instead."));
+    navigator.geolocation.getCurrentPosition((position) => {
+      if (!isUsableFix(position)) return reject(new Error("Your location signal is weak. Try again or enter a starting address."));
+      resolve(position);
+    }, (error) => reject(new Error(error.code === 1
+      ? "Allow location in your browser, or enter a starting address."
+      : "Couldn’t find your location. Try again or enter a starting address.")),
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 });
+  });
+}
+
+async function useCurrentLocation() {
+  const request = ++state.locationRequest;
+  elements.location_button.disabled = true;
+  toast("Finding your location…");
+  try {
+    const fix = await getLocationFix();
+    if (request !== state.locationRequest) return;
+    acceptLocationFix(fix);
+    state.endpoints.origin = "current";
+    elements.origin.value = "My location";
+    centerOnCar();
+  } catch (error) { toast(error.message); }
+  finally { elements.location_button.disabled = false; }
+}
+
+async function recenterMap() {
+  try {
+    acceptLocationFix(await getLocationFix());
+    centerOnCar();
+  } catch (error) { toast(error.message); }
+}
+
+function centerOnCar() {
+  state.followLocation = state.watchId !== null;
+  elements.recenter_button.classList.toggle("following", state.followLocation);
+  elements.recenter_button.querySelector("span").textContent = state.followLocation ? "Following" : "My location";
+  if (state.map && state.userLocation) {
+    state.map.panTo(state.userLocation);
+    state.map.setZoom(Math.max(state.map.getZoom(), 16));
+  }
+}
+
+function pauseFollowing() {
+  state.followLocation = false;
+  elements.recenter_button.classList.remove("following");
+  elements.recenter_button.querySelector("span").textContent = state.userLocation ? "Recenter" : "Locate me";
+}
+
+function isUsableFix(position) {
+  return Number.isFinite(position.coords.latitude) && Number.isFinite(position.coords.longitude)
+    && Number.isFinite(position.coords.accuracy) && position.coords.accuracy <= 100
+    && Date.now() - position.timestamp <= 15000;
+}
+
+function acceptLocationFix(position) {
+  if (state.lastFix && position.timestamp < state.lastFix.timestamp) return;
+  state.heading = travelHeading(position, state.lastFix, state.heading);
+  state.lastFix = position;
+  state.userLocation = { lat: position.coords.latitude, lng: position.coords.longitude };
+  renderLocationMarker();
+}
+
+function carSvg(heading) {
+  const angle = Number.isFinite(heading) ? heading : 0;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 88 88" width="88" height="88">
+    <circle cx="44" cy="44" r="25" fill="#3979f2" fill-opacity=".14"/>
+    <g transform="rotate(${angle} 44 44)">
+      ${heading !== null ? '<path d="M44 2 23 31Q44 22 65 31Z" fill="#3979f2" fill-opacity=".25"/>' : ""}
+      <ellipse cx="44" cy="48" rx="17" ry="25" fill="#102b52" fill-opacity=".2"/>
+      <rect x="28" y="28" width="5" height="13" rx="2" fill="#173454"/><rect x="55" y="28" width="5" height="13" rx="2" fill="#173454"/>
+      <rect x="29" y="50" width="5" height="13" rx="2" fill="#173454"/><rect x="54" y="50" width="5" height="13" rx="2" fill="#173454"/>
+      <rect x="32" y="19" width="24" height="48" rx="9" fill="#3478f6" stroke="#fff" stroke-width="2.5"/>
+      <path d="m36 30 16 0-2 10H38Z" fill="#d7efff"/>
+      <rect x="38" y="42" width="12" height="10" rx="3" fill="#2160d0"/>
+      <path d="M38 54h12l2 6H36Z" fill="#b4dcff"/>
+      <path d="M35 25h4m10 0h4" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+      <path d="M35 63h4m10 0h4" stroke="#ffb5ad" stroke-width="2" stroke-linecap="round"/>
+    </g></svg>`;
+}
+
+function renderLocationMarker() {
+  if (!state.map || !state.userLocation) return;
+  const svg = carSvg(state.heading);
+  if (state.provider === "osm") {
+    const icon = L.divIcon({ className: "driving-car", html: svg, iconSize: [88, 88], iconAnchor: [44, 44] });
+    if (!state.locationMarker) state.locationMarker = L.marker(state.userLocation, { icon, title: "Your car • GPS location", keyboard: false, interactive: false, zIndexOffset: 1000 }).addTo(state.map);
+    else state.locationMarker.setLatLng(state.userLocation).setIcon(icon);
+  } else {
+    const icon = { url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`, scaledSize: new google.maps.Size(88, 88), anchor: new google.maps.Point(44, 44) };
+    if (!state.locationMarker) state.locationMarker = new google.maps.Marker({ map: state.map, position: state.userLocation, title: "Your car • GPS location", icon, zIndex: 1000, clickable: false, optimized: false });
+    else { state.locationMarker.setPosition(state.userLocation); state.locationMarker.setIcon(icon); }
+  }
+}
+
+function removeLocationMarker() {
+  if (state.provider === "osm") state.locationMarker?.remove();
+  else state.locationMarker?.setMap(null);
+  state.locationMarker = null;
 }
 
 function toast(message) {
@@ -607,12 +775,10 @@ function initializeOpenMap() {
   }).addTo(state.map);
   state.dataLayer = L.layerGroup().addTo(state.map);
   state.map.on("moveend", refreshVisibleCameras);
+  state.map.on("dragstart", pauseFollowing);
   state.map.on("click", (event) => {
     if (!state.reportMode) return;
-    state.reportMode = false;
-    elements.report_lat.value = event.latlng.lat.toFixed(6);
-    elements.report_lng.value = event.latlng.lng.toFixed(6);
-    elements.report_dialog.showModal();
+    selectReportLocation(event.latlng);
   });
   elements.map_empty.hidden = true;
   refreshOpenMap();
@@ -649,25 +815,34 @@ function stopDriving() {
   void state.wakeLock?.release();
   state.wakeLock = null;
   window.speechSynthesis?.cancel();
-  if (state.locationMarker) {
-    if (state.provider === "osm") state.locationMarker.remove();
-    else state.locationMarker.setMap(null);
-  }
-  state.locationMarker = null;
+  clearInterval(state.driveTimer);
+  state.driveTimer = null;
+  pauseFollowing();
   state.alerted.clear();
-  elements.drive_button.textContent = "Start driving mode";
+  elements.drive_button.textContent = "Start driving";
   elements.drive_button.setAttribute("aria-pressed", "false");
-  elements.drive_status.textContent = "Keep this app visible and your screen on for location updates and alerts.";
+  elements.map_drive_button.querySelector("span").textContent = "Start driving";
+  elements.map_drive_button.setAttribute("aria-pressed", "false");
+  elements.drive_hud.hidden = true;
+  elements.drive_status.textContent = state.userLocation
+    ? "Driving stopped. Your car shows your last location."
+    : "Ready when you are. Allow location to put your car on the map.";
 }
 
 function toggleDriving() {
   if (state.watchId !== null) return stopDriving();
   if (!state.map) return toast("Wait for the map to load.");
   if (!navigator.geolocation) return toast("This browser does not support location.");
-  state.reportMode = false;
-  elements.drive_button.textContent = "Stop driving mode";
+  cancelReport();
+  setPanelOpen(false);
+  state.followLocation = true;
+  state.lastFix = null;
+  elements.drive_button.textContent = "Stop driving";
   elements.drive_button.setAttribute("aria-pressed", "true");
-  elements.drive_status.textContent = "Waiting for GPS permission and a location fix…";
+  elements.map_drive_button.querySelector("span").textContent = "Stop driving";
+  elements.map_drive_button.setAttribute("aria-pressed", "true");
+  elements.drive_hud.hidden = false;
+  setDriveStatus("Finding your location…", "Allow location to see your car on the map.");
   state.map.setZoom(16);
   // Starting speech from the button gesture enables speech on mobile browsers.
   if (elements.voice_alerts.checked && window.speechSynthesis) {
@@ -675,27 +850,36 @@ function toggleDriving() {
   }
   state.watchId = navigator.geolocation.watchPosition(updateDrivingPosition, (error) => {
     if (error.code === 1) { stopDriving(); toast("Allow location access to use driving mode."); }
-    else elements.drive_status.textContent = "GPS unavailable. Camera alerts paused until a fresh location arrives.";
+    else setDriveStatus("Waiting for location", "Camera alerts paused. Your car shows its last location.");
   }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 });
+  state.driveTimer = setInterval(() => {
+    if (state.lastFix && Date.now() - state.lastFix.timestamp > 15000) {
+      setDriveStatus("Waiting for location", "Camera alerts paused. Your car shows its last location.");
+    }
+  }, 5000);
   void keepAwake();
+}
+
+function setDriveStatus(title, message) {
+  elements.drive_hud_title.textContent = title;
+  elements.drive_hud_status.textContent = message;
+  elements.drive_status.textContent = message;
 }
 
 function updateDrivingPosition(position) {
   if (state.watchId === null) return;
   const point = { lat: position.coords.latitude, lng: position.coords.longitude };
-  const accuracy = position.coords.accuracy;
-  if (Date.now() - position.timestamp > 15000 || accuracy > 100) {
-    elements.drive_status.textContent = "GPS accuracy is low. Camera alerts paused until the signal improves.";
+  if (!isUsableFix(position)) {
+    setDriveStatus("Weak location signal", "Camera alerts paused until your location improves.");
     return;
   }
-  state.userLocation = point;
-  state.map.panTo(point);
-  if (!state.locationMarker) {
-    state.locationMarker = state.provider === "osm"
-      ? L.circleMarker(point, { radius: 9, color: "white", weight: 3, fillColor: "#1665ed", fillOpacity: 1 }).addTo(state.map)
-      : new google.maps.Marker({ map: state.map, position: point, title: "Your location", icon: { path: google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: "#1665ed", fillOpacity: 1, strokeColor: "white", strokeWeight: 3 }, zIndex: 100 });
-  } else if (state.provider === "osm") state.locationMarker.setLatLng(point);
-  else state.locationMarker.setPosition(point);
+  if (state.lastFix && position.timestamp < state.lastFix.timestamp) return;
+  acceptLocationFix(position);
+  if (state.followLocation) {
+    state.map.panTo(point);
+    elements.recenter_button.classList.add("following");
+    elements.recenter_button.querySelector("span").textContent = "Following";
+  }
   const radius = Number(elements.alert_distance.value);
   const latPad = radius / 110574;
   const lngPad = radius / Math.max(1000, 111320 * Math.cos(point.lat * Math.PI / 180));
@@ -704,9 +888,9 @@ function updateDrivingPosition(position) {
     .map(camera => ({ ...camera, distance: haversineMeters(point, camera) }))
     .filter(camera => camera.distance <= radius).sort((a, b) => a.distance - b.distance);
   const nearest = nearby[0];
-  elements.drive_status.textContent = nearest
-    ? `${nearest.brand} · ${Math.round(nearest.distance * 3.28084)} ft away · ${nearby.length} reported nearby`
-    : state.cameraIndex ? `No reported cameras within ${Math.round(radius * 3.28084)} ft. GPS ±${Math.round(accuracy)} m.` : "Live camera index unavailable — checking local reports only.";
+  setDriveStatus(nearest ? "Reported camera nearby" : "Driving mode is on", nearest
+    ? `${nearest.brand} · ${Math.round(nearest.distance * 3.28084)} ft away · ${nearby.length} nearby`
+    : state.cameraIndex ? `No reported cameras within ${Math.round(radius * 3.28084)} ft.` : "Live camera data unavailable. Checking your reports only.");
   const now = Date.now();
   for (const [id, time] of state.alerted) if (now - time > 300000) state.alerted.delete(id);
   const fresh = nearby.find(c => !state.alerted.has(c.id));

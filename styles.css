@@ -267,3 +267,104 @@ button { color: inherit; }
 .drive-options { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 16px; font-size: 14px; }
 .drive-options select { padding: 8px; border: 1px solid #899c94; border-radius: 8px; font: inherit; background: white; }
 #drive-status { font-size: 16px; line-height: 1.5; font-weight: 600; }
+
+/* Map-first trip controls, sized for a phone and kept clear of map attribution. */
+[hidden] { display: none !important; }
+:root { --paper: #f3f6f5; --panel: #ffffff; --line: #dde5e2; --radius: 20px; }
+.app-shell { height: 100vh; height: 100dvh; min-height: 0; }
+.brand strong { font-family: inherit; font-weight: 800; letter-spacing: -.7px; }
+.sidebar { display: flex; flex-direction: column; gap: 14px; }
+.sidebar > * { flex-shrink: 0; }
+.sidebar .panel { margin: 0; }
+.sheet-heading { display: none; order: -1; }
+.intro-card { order: 0; padding: 5px 4px 6px; }
+.intro-card h1 { font-family: inherit; font-size: 30px; font-weight: 780; line-height: 1.12; letter-spacing: -1.1px; }
+.intro-card p { font-size: 14px; }
+.route-form { order: 1; }
+.route-results { order: 2; }
+.driving-panel { order: 3; }
+.data-panel { order: 4; }
+.sidebar-footer { order: 5; flex-direction: column; gap: 6px; font-size: 10px; }
+.panel-heading h2, .driving-panel h2 { margin: 0; font-size: 18px; letter-spacing: -.4px; }
+.text-button { min-height: 40px; padding: 4px 8px; font-size: 13px; }
+.field { min-height: 52px; border-radius: 14px; }
+.route-field input { height: 52px; padding: 0 12px 0 37px; font-size: 16px; }
+.route-field:has(#origin) { background: #f7f9f8; }
+.field-label { font-size: 11px; }
+.location-shortcut { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 4px; border: 0; color: var(--green); background: transparent; font-size: 14px; font-weight: 700; cursor: pointer; }
+.location-shortcut svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.location-shortcut:disabled { opacity: .6; cursor: wait; }
+.preference-block { margin-top: 5px; }
+.segmented-control label span { min-height: 42px; font-size: 12px; }
+.segmented-control input:focus-visible + span { outline: 2px solid var(--green); outline-offset: 2px; }
+.primary-button, .secondary-button, .ghost-button { min-height: 48px; font-size: 14px; }
+.microcopy { color: #64716b; font-size: 11px; line-height: 1.5; }
+.route-connection { margin: 12px 2px 0; color: #755820; font-size: 12px; line-height: 1.5; }
+.driving-panel { background: #eaf3ef; border-color: #d2e4dc; }
+.driving-panel .panel-heading { flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.feature-tag { color: var(--green); font-size: 10px; font-weight: 750; }
+.drive-intro { margin: 0; font-size: 13px; line-height: 1.5; color: #52665c; }
+.drive-options { font-size: 13px; gap: 10px; align-items: center; }
+.drive-options input { width: 18px; height: 18px; vertical-align: middle; accent-color: var(--green); }
+#drive-status { margin: 14px 0 0; font-size: 13px; font-weight: 600; }
+.filter-chip { min-height: 40px; font-size: 11px; }
+.data-stats span { font-size: 10px; }
+.stacked-field input, .stacked-field select, .stacked-field textarea { font-size: 16px; }
+.report-location { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; padding: 8px 12px; background: var(--green-pale); border-radius: 12px; font-size: 13px; }
+.map-controls { top: 18px; right: 18px; }
+.map-control { display: flex; width: auto; min-width: 48px; height: 48px; padding: 0 14px; gap: 8px; box-shadow: 0 3px 14px #10251f1a; }
+.map-control span { font-size: 13px; font-weight: 750; }
+.map-control.following { color: #1f5bce; border-color: #9cb9ec; }
+.driving-car { background: none; border: none; pointer-events: none; }
+.driving-car svg { overflow: visible; filter: drop-shadow(0 3px 3px #132e4d33); }
+.drive-hud, .report-hint { position: absolute; z-index: 5; left: 18px; top: 18px; display: flex; align-items: center; gap: 12px; width: min(420px, calc(100% - 185px)); padding: 16px; border: 1px solid #e0e7e3; border-radius: 18px; background: #fff; box-shadow: 0 6px 25px #10251f20; }
+.drive-hud > div { flex: 1; min-width: 0; }
+.drive-hud strong { display: block; font-size: 15px; }
+.drive-hud p { margin: 4px 0 0; font-size: 12px; color: var(--muted); line-height: 1.45; }
+.drive-hud-dot { flex-shrink: 0; width: 10px; height: 10px; border-radius: 50%; background: #3478f6; box-shadow: 0 0 0 5px #3478f618; }
+.drive-hud .text-button { color: #a43e32; }
+.report-hint { font-size: 14px; }
+.map-dock { display: none; }
+.leaflet-bottom.leaflet-right { bottom: 16px; }
+.leaflet-control-attribution { font-size: 9px !important; }
+.map-legend { bottom: 24px; }
+.toast { bottom: 30px; font-size: 14px; }
+button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid #3478f6; outline-offset: 3px; }
+@media (max-width: 860px) {
+  .topbar { padding: 0 12px; }
+  .brand { gap: 8px; }
+  .brand-mark { width: 34px; height: 34px; border-radius: 11px; }
+  .brand-mark svg { width: 24px; }
+  .brand strong { font-size: 18px; }
+  .live-pill { border: 0; background: transparent; font-size: 10px; max-width: 138px; padding: 0 7px; }
+  .topbar-actions { gap: 4px; }
+  .topbar-actions .icon-button { width: 38px; height: 38px; }
+  .sidebar { left: 0; right: 0; bottom: 0; max-height: 90%; padding: 10px 16px calc(24px + env(safe-area-inset-bottom)); border-radius: 26px 26px 0 0; border-bottom: 0; overscroll-behavior: contain; visibility: hidden; }
+  .sidebar.open { visibility: visible; }
+  .sheet-heading { position: sticky; top: -10px; z-index: 2; display: flex; justify-content: space-between; align-items: center; padding: 10px 0; background: var(--paper); font-size: 19px; }
+  .sheet-heading .icon-button { font-size: 26px; border-radius: 50%; width: 42px; height: 42px; }
+  .sidebar .panel { padding: 17px; }
+  .map-dock { position: absolute; z-index: 6; left: 14px; right: 14px; bottom: calc(24px + env(safe-area-inset-bottom)); display: flex; align-items: stretch; gap: 10px; padding: 10px; border: 1px solid #e1e8e4; border-radius: 24px; background: #fff; box-shadow: 0 8px 30px #10251f26; }
+  .destination-launch { display: flex; flex: 1; min-width: 0; align-items: center; gap: 12px; min-height: 64px; padding: 10px 8px; border: 0; border-radius: 16px; background: transparent; text-align: left; cursor: pointer; }
+  .destination-launch svg { flex: 0 0 23px; width: 23px; height: 23px; fill: none; stroke: var(--green); stroke-width: 2; stroke-linecap: round; }
+  .destination-launch strong { display: block; font-size: 20px; letter-spacing: -.5px; }
+  .destination-launch small { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+  .drive-launch { display: flex; flex: 0 0 100px; flex-direction: column; align-items: center; justify-content: center; gap: 5px; border: 0; border-radius: 16px; color: #fff; background: var(--green-dark); cursor: pointer; }
+  .drive-launch svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .drive-launch span { font-size: 11px; font-weight: 750; }
+  .drive-launch[aria-pressed="true"] { background: #9b4036; }
+  .sidebar.open + .map-stage .map-dock { display: none; }
+  .map-controls { top: 14px; right: 14px; }
+  .map-legend { left: 14px; bottom: calc(126px + env(safe-area-inset-bottom)); font-size: 10px; }
+  .leaflet-bottom.leaflet-right { bottom: 0; }
+  .leaflet-control-zoom { margin-bottom: calc(130px + env(safe-area-inset-bottom)) !important; }
+  .drive-hud, .report-hint { top: 76px; left: 14px; width: calc(100% - 28px); padding: 14px; }
+  .toast { bottom: calc(130px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 370px) {
+  .live-pill { max-width: 104px; }
+  .map-dock { left: 8px; right: 8px; padding: 8px; gap: 6px; }
+  .destination-launch { gap: 8px; }
+  .destination-launch small { font-size: 10px; }
+  .drive-launch { flex-basis: 86px; }
+}

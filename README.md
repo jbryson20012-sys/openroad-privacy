@@ -6,7 +6,9 @@ It is a separate application built with Google Maps Platform; third-party code c
 
 ## Driving mode — no API key needed
 
-Open the app and choose **Start driving mode**, then allow location access. The OpenStreetMap camera map follows your GPS position and gives optional spoken proximity alerts at 500, 1,000 or 2,000 feet. Keep the app visible and the screen on; mobile browsers may suspend background location or audio. Alerts describe proximity in any direction, not confirmed cameras on your road. Poor GPS fixes pause alerts. Stop driving mode to stop location tracking. Your GPS track is not saved.
+Open the app and choose **Start driving**, then allow location access. A small car marks your GPS position and points in your direction of travel. The OpenStreetMap camera map follows your GPS position and gives optional spoken proximity alerts at 500, 1,000 or 2,000 feet. Keep the app visible and the screen on; mobile browsers may suspend background location or audio. Alerts describe proximity in any direction, not confirmed cameras on your road. Poor GPS fixes pause alerts. Stop driving mode to stop location tracking. Your GPS track is not saved.
+
+Enter a place or street address to plan a trip, or choose **Use my location**. Coordinates stay behind the scenes. Drag the map to look around, then tap **Recenter** to follow your car again. Add a camera report by tapping its location on the map.
 
 Google route comparisons still require your own restricted API key. This is not automatic turn-by-turn navigation or a guarantee of avoiding all cameras.
 

@@ -232,3 +232,19 @@ export function escapeHtml(value = "") {
     '"': "&quot;",
   })[character]);
 }
+// GPS headings are clockwise from north. Ignore stationary GPS jitter.
+export function travelHeading(position, previous, lastHeading = null) {
+  const { heading, speed, latitude, longitude, accuracy } = position.coords;
+  if (Number.isFinite(speed) && speed < 1.4) return lastHeading;
+  if (Number.isFinite(heading) && heading >= 0 && heading <= 360) return heading % 360;
+  if (!previous || position.timestamp <= previous.timestamp || position.timestamp - previous.timestamp > 15000) return lastHeading;
+  const from = { lat: previous.coords.latitude, lng: previous.coords.longitude };
+  const to = { lat: latitude, lng: longitude };
+  if (haversineMeters(from, to) < Math.max(10, accuracy, previous.coords.accuracy)) return lastHeading;
+  const radians = Math.PI / 180;
+  const delta = (to.lng - from.lng) * radians;
+  const y = Math.sin(delta) * Math.cos(to.lat * radians);
+  const x = Math.cos(from.lat * radians) * Math.sin(to.lat * radians)
+    - Math.sin(from.lat * radians) * Math.cos(to.lat * radians) * Math.cos(delta);
+  return (Math.atan2(y, x) / radians + 360) % 360;
+}

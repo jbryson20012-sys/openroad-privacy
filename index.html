@@ -47,28 +47,32 @@
 
       <main class="workspace">
         <aside class="sidebar" id="sidebar">
+          <div class="sheet-heading">
+            <strong>Your trip</strong>
+            <button class="icon-button" id="close-panel-button" type="button" aria-label="Close trip panel">×</button>
+          </div>
           <section class="intro-card">
-            <div class="eyebrow">ROUTE AWARENESS</div>
-            <h1>See cameras as you drive.</h1>
-            <p>The live camera map and driving alerts work without an API key. Connect Google Maps for route comparisons.</p>
+            <div class="eyebrow">A LITTLE MORE AWARE</div>
+            <h1>Your road. Your privacy.</h1>
+            <p>Find your way with reported cameras in view.</p>
           </section>
 
           <section class="panel driving-panel">
-            <h2>Drive with camera awareness</h2>
-            <button class="primary-button" id="drive-button" type="button" aria-pressed="false">Start driving mode</button>
+            <div class="panel-heading"><h2>Just driving?</h2><span class="feature-tag">No destination needed</span></div>
+            <p class="drive-intro">Your car follows you on the map. Hear about reported cameras nearby.</p>
+            <button class="primary-button" id="drive-button" type="button" aria-pressed="false">Start driving</button>
             <div class="drive-options">
               <label><input id="voice-alerts" type="checkbox" checked /> Voice alerts</label>
               <label>Alert radius <select id="alert-distance"><option value="152">500 ft</option><option value="305" selected>1,000 ft</option><option value="610">2,000 ft</option></select></label>
             </div>
-            <p id="drive-status" role="status">Keep this app visible and your screen on for location updates and alerts.</p>
-            <p class="microcopy">Alerts cover nearby cameras in any direction, including adjacent roads. Set up before driving.</p>
+            <p id="drive-status" role="status">Ready when you are. Allow location to put your car on the map.</p>
+            <p class="microcopy">Keep this app open and your screen on. Alerts include nearby roads. Set up before driving.</p>
           </section>
 
           <form class="route-form panel" id="route-form">
             <div class="panel-heading">
               <div>
-                <span class="step-number">01</span>
-                <h2>Plan a route</h2>
+                <h2>Where to?</h2>
               </div>
               <button class="text-button" id="swap-button" type="button">Swap</button>
             </div>
@@ -76,17 +80,18 @@
             <label class="field route-field">
               <span class="route-dot origin-dot" aria-hidden="true"></span>
               <span class="sr-only">Starting point</span>
-              <input id="origin" name="origin" autocomplete="street-address" placeholder="Starting point" required />
-              <button class="field-action" id="location-button" type="button" aria-label="Use my location" title="Use my location">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/><circle cx="12" cy="12" r="5"/></svg>
-              </button>
+              <input id="origin" name="origin" autocomplete="off" placeholder="Starting address" value="My location" required />
             </label>
 
             <label class="field route-field">
               <span class="route-dot destination-dot" aria-hidden="true"></span>
               <span class="sr-only">Destination</span>
-              <input id="destination" name="destination" autocomplete="street-address" placeholder="Destination" required />
+              <input id="destination" name="destination" autocomplete="off" placeholder="Enter a place or address" required />
             </label>
+            <button class="location-shortcut" id="location-button" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/><circle cx="12" cy="12" r="5"/></svg>
+              Use my location
+            </button>
 
             <div class="preference-block">
               <span class="field-label">Route priority</span>
@@ -95,7 +100,7 @@
                   <input type="radio" name="priority" value="privacy" checked />
                   <span>
                     <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2 16 5v4.5c0 4-2.5 6.8-6 8-3.5-1.2-6-4-6-8V5l6-3Z"/></svg>
-                    Fewest ALPRs
+                    Fewer cameras
                   </span>
                 </label>
                 <label>
@@ -112,13 +117,13 @@
               <span>Compare routes</span>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
             </button>
-            <p class="microcopy">Route comparisons require a Google Maps API key. Selects the fewest reported cameras among Google’s returned alternatives. Camera reports may be incomplete or stale.</p>
+            <p class="route-connection" id="route-connection">Route comparisons need a one-time Google Maps connection in Settings.</p>
+            <p class="microcopy">Compares reported cameras along available routes. Reports may be incomplete or out of date.</p>
           </form>
 
           <section class="panel route-results" id="route-results" hidden aria-live="polite">
             <div class="panel-heading">
               <div>
-                <span class="step-number">02</span>
                 <h2>Route comparison</h2>
               </div>
               <button class="text-button" id="clear-route-button" type="button">Clear</button>
@@ -139,7 +144,6 @@
           <section class="panel data-panel">
             <div class="panel-heading">
               <div>
-                <span class="step-number">03</span>
                 <h2>Camera data</h2>
               </div>
               <button class="text-button" id="about-data-button" type="button">About</button>
@@ -191,17 +195,33 @@
           <div class="map-controls">
             <button class="map-control" id="recenter-button" type="button" aria-label="Recenter map" title="Recenter map">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/><circle cx="12" cy="12" r="5"/></svg>
+              <span>Locate me</span>
             </button>
+          </div>
+          <div class="drive-hud" id="drive-hud" hidden>
+            <span class="drive-hud-dot" aria-hidden="true"></span>
+            <div><strong id="drive-hud-title">Driving mode</strong><p id="drive-hud-status" role="status">Finding your location…</p></div>
+            <button id="stop-drive-button" class="text-button" type="button">Stop</button>
+          </div>
+          <div class="report-hint" id="report-hint" hidden>
+            <strong>Tap the camera’s location on the map</strong>
+            <button class="text-button" id="cancel-report-button" type="button">Cancel</button>
           </div>
           <div class="map-legend">
             <span><i class="legend-dot flock"></i>Flock</span>
             <span><i class="legend-dot other"></i>Other ALPR</span>
             <span><i class="legend-dot local"></i>Your report</span>
           </div>
-          <button class="mobile-panel-toggle" id="mobile-panel-toggle" type="button" aria-label="Open route panel">
-            <span></span>
-            Plan route
-          </button>
+          <div class="map-dock" id="map-dock">
+            <button class="destination-launch" id="mobile-panel-toggle" type="button" aria-label="Where to? Open trip panel" aria-controls="sidebar" aria-expanded="false">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>
+              <span><strong>Where to?</strong><small>Search a place or address</small></span>
+            </button>
+            <button class="drive-launch" id="map-drive-button" type="button" aria-pressed="false">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 10 2-6h10l2 6M4 10h16v9H4zM7 19v2m10-2v2M7 14h1m8 0h1"/></svg>
+              <span>Start driving</span>
+            </button>
+          </div>
         </section>
       </main>
     </div>
@@ -236,15 +256,11 @@
         <div class="eyebrow">COMMUNITY REPORT</div>
         <h2>Add a camera</h2>
         <p class="modal-lead">Use a source link or recent observation where possible. Reports remain on this device until exported.</p>
-        <div class="field-grid two-col">
-          <label class="field stacked-field">
-            <span>Latitude</span>
-            <input id="report-lat" name="lat" inputmode="decimal" required />
-          </label>
-          <label class="field stacked-field">
-            <span>Longitude</span>
-            <input id="report-lng" name="lng" inputmode="decimal" required />
-          </label>
+        <input id="report-lat" name="lat" type="hidden" />
+        <input id="report-lng" name="lng" type="hidden" />
+        <div class="report-location">
+          <span>✓ Location selected on map</span>
+          <button class="text-button" id="change-report-location" type="button">Change</button>
         </div>
         <div class="field-grid two-col">
           <label class="field stacked-field">
