@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b1f1a" />
+    <meta
+      name="description"
+      content="A public-interest map for understanding reported ALPR exposure along ordinary driving routes."
+    />
+    <title>OpenRoad Privacy</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./assets/icon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://maps.googleapis.com" />
+    <link rel="stylesheet" href="./vendor/leaflet.css" />
+    <script src="./vendor/leaflet.js" defer></script>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="OpenRoad Privacy home">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 40 40" role="img">
+              <path d="M20 3 34 9v10c0 9-5.8 15.2-14 18-8.2-2.8-14-9-14-18V9l14-6Z" />
+              <path d="M10.5 24.5c4-2.2 6.2-6.2 7-12M29.5 24.5c-4-2.2-6.2-6.2-7-12M13 27h14" />
+            </svg>
+          </span>
+          <span>
+            <strong>OpenRoad</strong>
+            <small>Privacy map</small>
+          </span>
+        </a>
+        <div class="topbar-actions">
+          <span class="live-pill" id="data-status" title="Community dataset status">
+            <span class="status-dot" aria-hidden="true"></span>
+            Loading camera index…
+          </span>
+          <button class="icon-button" id="install-button" type="button" hidden aria-label="Install app">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 17v3h14v-3" /></svg>
+          </button>
+          <button class="icon-button" id="settings-button" type="button" aria-label="Map settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="m19 13.5 2-1.5-2-1.5-.5-1.3.4-2.5-2.5-.8-1.8 1-1.3-.3L12 4l-1.5 2.1-1.3.3-1.8-1-2.5.8.4 2.5-.5 1.3-2 1.5 2 1.5.5 1.3-.4 2.5 2.5.8 1.8-1 1.3.3 1.5 2.1 1.5-2.1 1.3-.3 1.8 1 2.5-.8-.4-2.5.5-1.3Z"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="sidebar" id="sidebar">
+          <section class="intro-card">
+            <div class="eyebrow">ROUTE AWARENESS</div>
+            <h1>See cameras as you drive.</h1>
+            <p>The live camera map and driving alerts work without an API key. Connect Google Maps for route comparisons.</p>
+          </section>
+
+          <section class="panel driving-panel">
+            <h2>Drive with camera awareness</h2>
+            <button class="primary-button" id="drive-button" type="button" aria-pressed="false">Start driving mode</button>
+            <div class="drive-options">
+              <label><input id="voice-alerts" type="checkbox" checked /> Voice alerts</label>
+              <label>Alert radius <select id="alert-distance"><option value="152">500 ft</option><option value="305" selected>1,000 ft</option><option value="610">2,000 ft</option></select></label>
+            </div>
+            <p id="drive-status" role="status">Keep this app visible and your screen on for location updates and alerts.</p>
+            <p class="microcopy">Alerts cover nearby cameras in any direction, including adjacent roads. Set up before driving.</p>
+          </section>
+
+          <form class="route-form panel" id="route-form">
+            <div class="panel-heading">
+              <div>
+                <span class="step-number">01</span>
+                <h2>Plan a route</h2>
+              </div>
+              <button class="text-button" id="swap-button" type="button">Swap</button>
+            </div>
+
+            <label class="field route-field">
+              <span class="route-dot origin-dot" aria-hidden="true"></span>
+              <span class="sr-only">Starting point</span>
+              <input id="origin" name="origin" autocomplete="street-address" placeholder="Starting point" required />
+              <button class="field-action" id="location-button" type="button" aria-label="Use my location" title="Use my location">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/><circle cx="12" cy="12" r="5"/></svg>
+              </button>
+            </label>
+
+            <label class="field route-field">
+              <span class="route-dot destination-dot" aria-hidden="true"></span>
+              <span class="sr-only">Destination</span>
+              <input id="destination" name="destination" autocomplete="street-address" placeholder="Destination" required />
+            </label>
+
+            <div class="preference-block">
+              <span class="field-label">Route priority</span>
+              <div class="segmented-control" role="radiogroup" aria-label="Route priority">
+                <label>
+                  <input type="radio" name="priority" value="privacy" checked />
+                  <span>
+                    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2 16 5v4.5c0 4-2.5 6.8-6 8-3.5-1.2-6-4-6-8V5l6-3Z"/></svg>
+                    Fewest ALPRs
+                  </span>
+                </label>
+                <label>
+                  <input type="radio" name="priority" value="fastest" />
+                  <span>
+                    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m11 1-7 10h5l-1 8 8-11h-5V1Z"/></svg>
+                    Fastest
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <button class="primary-button" type="submit" id="route-button">
+              <span>Compare routes</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+            </button>
+            <p class="microcopy">Route comparisons require a Google Maps API key. Selects the fewest reported cameras among Google’s returned alternatives. Camera reports may be incomplete or stale.</p>
+          </form>
+
+          <section class="panel route-results" id="route-results" hidden aria-live="polite">
+            <div class="panel-heading">
+              <div>
+                <span class="step-number">02</span>
+                <h2>Route comparison</h2>
+              </div>
+              <button class="text-button" id="clear-route-button" type="button">Clear</button>
+            </div>
+            <div class="route-cards" id="route-cards"></div>
+            <div class="selected-summary" id="selected-summary"></div>
+            <div class="route-actions">
+              <a class="secondary-button" id="google-maps-link" href="#" target="_blank" rel="noreferrer">
+                Open selected route
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5m0-5-8 8M19 13v6H5V5h6" /></svg>
+              </a>
+              <button class="ghost-button" id="directions-toggle" type="button">Show directions</button>
+            </div>
+            <ol class="directions-list" id="directions-list" hidden></ol>
+            <p class="microcopy route-warning" id="route-warning"></p>
+          </section>
+
+          <section class="panel data-panel">
+            <div class="panel-heading">
+              <div>
+                <span class="step-number">03</span>
+                <h2>Camera data</h2>
+              </div>
+              <button class="text-button" id="about-data-button" type="button">About</button>
+            </div>
+            <div class="data-stats">
+              <div><strong id="total-count">—</strong><span>indexed</span></div>
+              <div><strong id="visible-count">0</strong><span>on map</span></div>
+              <div><strong id="local-count">0</strong><span>your reports</span></div>
+            </div>
+            <div class="filter-row" id="filter-row" aria-label="Filter cameras by brand">
+              <button class="filter-chip active" type="button" data-brand="all">All</button>
+              <button class="filter-chip" type="button" data-brand="flock">Flock</button>
+              <button class="filter-chip" type="button" data-brand="other">Other ALPR</button>
+              <button class="filter-chip" type="button" data-brand="unknown">Unknown</button>
+            </div>
+            <div class="data-actions">
+              <button class="secondary-button" id="report-button" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14m-7-7h14" /></svg>
+                Add report
+              </button>
+              <label class="secondary-button file-button">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L8 8m4-4 4 4M5 15v5h14v-5" /></svg>
+                Import
+                <input id="import-input" type="file" accept=".csv,.json,.geojson,application/json,text/csv" />
+              </label>
+              <button class="ghost-button" id="export-button" type="button">Export</button>
+            </div>
+          </section>
+
+          <footer class="sidebar-footer">
+            <span>Open data • Local-first reports</span>
+            <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors</a>
+          </footer>
+        </aside>
+
+        <section class="map-stage" aria-label="Map">
+          <div id="map"></div>
+          <div class="map-empty" id="map-empty">
+            <div class="map-grid" aria-hidden="true"></div>
+            <div class="setup-card">
+              <span class="setup-icon" aria-hidden="true">
+                <svg viewBox="0 0 32 32"><path d="M16 3C9.9 3 5 7.8 5 13.7 5 22 16 29 16 29s11-7 11-15.3C27 7.8 22.1 3 16 3Z"/><circle cx="16" cy="14" r="4"/></svg>
+              </span>
+              <h2>Connect Google Maps</h2>
+              <p>Add a browser-restricted Google Maps API key to load the live map and routes.</p>
+              <button class="primary-button" id="setup-button" type="button">Set up map</button>
+            </div>
+          </div>
+          <div class="map-controls">
+            <button class="map-control" id="recenter-button" type="button" aria-label="Recenter map" title="Recenter map">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/><circle cx="12" cy="12" r="5"/></svg>
+            </button>
+          </div>
+          <div class="map-legend">
+            <span><i class="legend-dot flock"></i>Flock</span>
+            <span><i class="legend-dot other"></i>Other ALPR</span>
+            <span><i class="legend-dot local"></i>Your report</span>
+          </div>
+          <button class="mobile-panel-toggle" id="mobile-panel-toggle" type="button" aria-label="Open route panel">
+            <span></span>
+            Plan route
+          </button>
+        </section>
+      </main>
+    </div>
+
+    <dialog class="modal" id="settings-dialog">
+      <form method="dialog" class="modal-card" id="settings-form">
+        <button class="modal-close" type="button" data-close-dialog aria-label="Close">×</button>
+        <div class="eyebrow">MAP CONNECTION</div>
+        <h2>Google Maps setup</h2>
+        <p class="modal-lead">The key stays in this browser and is never included in exports or the repository.</p>
+        <label class="field stacked-field">
+          <span>Google Maps API key</span>
+          <input id="api-key" type="password" autocomplete="off" placeholder="AIza…" />
+        </label>
+        <label class="checkbox-row">
+          <input id="remember-key" type="checkbox" checked />
+          <span>Remember on this device</span>
+        </label>
+        <div class="notice-box">
+          Enable both <strong>Maps JavaScript API</strong> and <strong>Routes API</strong>, then restrict the key to your site’s HTTP referrer.
+        </div>
+        <div class="modal-actions">
+          <a class="text-link" href="https://developers.google.com/maps/documentation/javascript/routes/start" target="_blank" rel="noreferrer">Google setup guide</a>
+          <button class="primary-button compact" id="save-key-button" type="submit">Save & load map</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="modal" id="report-dialog">
+      <form method="dialog" class="modal-card" id="report-form">
+        <button class="modal-close" type="button" data-close-dialog aria-label="Close">×</button>
+        <div class="eyebrow">COMMUNITY REPORT</div>
+        <h2>Add a camera</h2>
+        <p class="modal-lead">Use a source link or recent observation where possible. Reports remain on this device until exported.</p>
+        <div class="field-grid two-col">
+          <label class="field stacked-field">
+            <span>Latitude</span>
+            <input id="report-lat" name="lat" inputmode="decimal" required />
+          </label>
+          <label class="field stacked-field">
+            <span>Longitude</span>
+            <input id="report-lng" name="lng" inputmode="decimal" required />
+          </label>
+        </div>
+        <div class="field-grid two-col">
+          <label class="field stacked-field">
+            <span>Type / brand</span>
+            <select id="report-brand" name="brand">
+              <option>Flock Safety</option>
+              <option>Motorola Solutions</option>
+              <option>Vigilant Solutions</option>
+              <option>Unknown ALPR</option>
+              <option>Other</option>
+            </select>
+          </label>
+          <label class="field stacked-field">
+            <span>Confidence</span>
+            <select id="report-confidence" name="confidence">
+              <option value="confirmed">Confirmed</option>
+              <option value="probable" selected>Probable</option>
+              <option value="unverified">Unverified</option>
+            </select>
+          </label>
+        </div>
+        <label class="field stacked-field">
+          <span>Source URL (optional)</span>
+          <input id="report-source" name="sourceUrl" type="url" placeholder="https://…" />
+        </label>
+        <label class="field stacked-field">
+          <span>Notes (optional)</span>
+          <textarea id="report-notes" name="notes" rows="3" placeholder="Direction faced, pole description, date observed…"></textarea>
+        </label>
+        <div class="modal-actions end">
+          <button class="ghost-button" type="button" data-close-dialog>Cancel</button>
+          <button class="primary-button compact" id="save-report-button" type="submit">Save report</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="modal" id="about-dialog">
+      <form method="dialog" class="modal-card wide-modal">
+        <button class="modal-close" type="button" data-close-dialog aria-label="Close">×</button>
+        <div class="eyebrow">DATA & LIMITATIONS</div>
+        <h2>What this map knows</h2>
+        <div class="about-grid">
+          <article>
+            <span class="about-number">01</span>
+            <h3>Community index</h3>
+            <p>U.S. camera coordinates come from the hourly DeFlock data pipeline, derived from OpenStreetMap surveillance tags. Brand labels appear where contributors supplied them.</p>
+          </article>
+          <article>
+            <span class="about-number">02</span>
+            <h3>No completeness claim</h3>
+            <p>Private installations can be unreported, moved, removed, mistagged, or newly installed. Treat every exposure total as an estimate—not a guarantee.</p>
+          </article>
+          <article>
+            <span class="about-number">03</span>
+            <h3>How routing works</h3>
+            <p>Google returns up to several lawful route alternatives. OpenRoad counts reported points near each path and can select the route with the smallest count. It does not invent roads or bypass closures.</p>
+          </article>
+          <article>
+            <span class="about-number">04</span>
+            <h3>Local-first</h3>
+            <p>Your API key and reports stay in local browser storage. No plate numbers, trip history, or identity data are collected by this static app.</p>
+          </article>
+        </div>
+        <div class="source-links">
+          <a href="https://github.com/flockhopper3/deflock-data" target="_blank" rel="noreferrer">DeFlock data pipeline</a>
+          <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap license</a>
+          <a href="./DATA_POLICY.md" target="_blank">Project data policy</a>
+        </div>
+      </form>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "name": "openroad-privacy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A local-first public-interest map for comparing reported ALPR exposure along ordinary routes.",
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "test": "node --test",
+    "check": "node --check app.js && node --check core.js && node --check camera-index.js && node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
