@@ -1,0 +1,2 @@
+id,latitude,longitude,brand,type,direction,confidence,last_verified,source_url,notes
+example-001,34.9341,-85.2012,Flock Safety,ALPR,northbound,probable,2026-09-01,https://example.org/source,Illustrative row only — replace with a sourced observation
