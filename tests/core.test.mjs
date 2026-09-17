@@ -8,8 +8,26 @@ import {
   distancePointToSegmentMeters,
   mergeCameras,
   parseCsv,
+  travelHeading,
 } from "../core.js";
 import { CameraPositionIndex } from "../camera-index.js";
+
+const fix = (lat, lng, overrides = {}) => ({ timestamp: 10000, coords: {
+  latitude: lat, longitude: lng, accuracy: 5, heading: null, speed: null, ...overrides,
+} });
+
+test("car heading accepts north and preserves direction when stationary", () => {
+  assert.equal(travelHeading(fix(35, -85, { heading: 0, speed: 12 }), null, 90), 0);
+  assert.equal(travelHeading(fix(35, -85, { heading: null }), null), null);
+  assert.equal(travelHeading(fix(35, -85, { heading: 240, speed: 0 }), null, 90), 90);
+});
+
+test("car infers travel direction from movement, without turning on GPS jitter", () => {
+  const previous = { ...fix(35, -85), timestamp: 5000 };
+  assert.ok(Math.abs(travelHeading(fix(35, -84.999), previous) - 90) < 1);
+  assert.equal(travelHeading(fix(35.000001, -85), previous, 90), 90);
+  assert.equal(travelHeading({ ...fix(35, -84.999), timestamp: 30000 }, previous, 90), 90);
+});
 
 test("CSV parser handles quoted commas and escaped quotes", () => {
   assert.deepEqual(parseCsv('id,notes\n1,"Near school, east side"\n2,"Says ""ALPR"""'), [
